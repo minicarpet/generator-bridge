@@ -145,7 +145,8 @@ func Process(cbuildGenIdxYmlPath, outPath, cubeMxPath string, runCubeMx bool, pi
 		if lastPath != "STM32CubeMX" {
 			cubeIocPath = path.Join(cubeIocPath, "STM32CubeMX")
 		}
-		iocprojectPath := path.Join(cubeIocPath, "STM32CubeMX.ioc")
+		cubeIocPath = path.Join(cubeIocPath, bridgeParams[0].ProjectName)
+		iocprojectPath := path.Join(cubeIocPath, bridgeParams[0].ProjectName+".ioc")
 		mxprojectPath := path.Join(cubeIocPath, ".mxproject")
 		log.Debugf("pid of CubeMX in daemon: %d", pid)
 		running = true
@@ -272,7 +273,7 @@ func Process(cbuildGenIdxYmlPath, outPath, cubeMxPath string, runCubeMx bool, pi
 		if lastPath != "STM32CubeMX" {
 			cubeIocPath = path.Join(cubeIocPath, "STM32CubeMX")
 		}
-		cubeIocPath = path.Join(cubeIocPath, "STM32CubeMX.ioc")
+		cubeIocPath = path.Join(cubeIocPath, bridgeParams[0].ProjectName, bridgeParams[0].ProjectName+".ioc")
 
 		var err error
 		var pid int
@@ -386,7 +387,7 @@ func WriteProjectFile(workDir string, params BridgeParamType) (string, error) {
 	} else {
 		text.AddLine("load", params.Device)
 	}
-	text.AddLine("project name", "STM32CubeMX")
+	text.AddLine("project name", params.ProjectName)
 
 	toolchain, err := GetToolchain(params.Compiler)
 	if err != nil {
@@ -399,6 +400,7 @@ func WriteProjectFile(workDir string, params BridgeParamType) (string, error) {
 		cubeWorkDir = filepath.FromSlash(cubeWorkDir)
 	}
 	text.AddLine("project path", utils.AddQuotes(cubeWorkDir))
+	text.AddLine("project couplefilesbyip 1")
 	text.AddLine("SetCopyLibrary", utils.AddQuotes("copy only"))
 
 	if utils.FileExists(filePath) {
@@ -564,7 +566,7 @@ func WriteCgenYml(outPath string, mxprojectAll MxprojectAllType, bridgeParams []
 func WriteCgenYmlSub(outPath string, mxproject MxprojectType, bridgeParam BridgeParamType) error {
 	var cgen cbuild.CgenType
 
-	relativePathAdd, err := GetRelativePathAdd(outPath, bridgeParam.Compiler)
+	relativePathAdd, err := GetRelativePathAdd(outPath, bridgeParam.Compiler, bridgeParam.ProjectName)
 	if err != nil {
 		return err
 	}
@@ -572,6 +574,8 @@ func WriteCgenYmlSub(outPath string, mxproject MxprojectType, bridgeParam Bridge
 	cgen.GeneratorImport.ForBoard = bridgeParam.BoardName
 	cgen.GeneratorImport.ForDevice = bridgeParam.Device
 	cgen.GeneratorImport.Define = append(cgen.GeneratorImport.Define, mxproject.PreviousUsedFiles.CDefines...)
+
+	filterFiles["/"+bridgeParam.ProjectName+"/Drivers/CMSIS/Include"] = "CMSIS include folder (delivered by ARM::CMSIS)"
 
 	for _, headerPath := range mxproject.PreviousUsedFiles.HeaderPath {
 		headerPath, _ = utils.ConvertFilename(outPath, headerPath, relativePathAdd)
@@ -667,7 +671,7 @@ func WriteCgenYmlSub(outPath string, mxproject MxprojectType, bridgeParam Bridge
 
 func GetToolchain(compiler string) (string, error) {
 	var toolchainMapping = map[string]string{
-		"AC6":   "MDK-ARM V5",
+		"AC6":   "MDK-ARM V5.32",
 		"GCC":   "STM32CubeIDE",
 		"IAR":   "EWARM",
 		"CLANG": "STM32CubeIDE",
@@ -680,7 +684,7 @@ func GetToolchain(compiler string) (string, error) {
 	return toolchain, nil
 }
 
-func GetRelativePathAdd(outPath string, compiler string) (string, error) {
+func GetRelativePathAdd(outPath string, compiler string, projectName string) (string, error) {
 	var pathMapping = map[string]string{
 		"AC6":   "MDK-ARM",
 		"GCC":   "",
@@ -698,12 +702,12 @@ func GetRelativePathAdd(outPath string, compiler string) (string, error) {
 	if lastPath != "STM32CubeMX" {
 		relativePathAdd = path.Join(relativePathAdd, "STM32CubeMX")
 	}
-	relativePathAdd = path.Join(relativePathAdd, folder)
+	relativePathAdd = path.Join(relativePathAdd, projectName, folder)
 
 	return relativePathAdd, nil
 }
 
-func GetToolchainFolderPath(outPath string, compiler string) (string, error) {
+func GetToolchainFolderPath(outPath string, compiler string, projectName string) (string, error) {
 	var toolchainFolderMapping = map[string]string{
 		"AC6":   "MDK-ARM",
 		"GCC":   "STM32CubeIDE",
@@ -721,7 +725,7 @@ func GetToolchainFolderPath(outPath string, compiler string) (string, error) {
 	if lastPath != "STM32CubeMX" {
 		toolchainFolderPath = path.Join(outPath, "STM32CubeMX")
 	}
-	toolchainFolderPath = path.Join(toolchainFolderPath, toolchainFolder)
+	toolchainFolderPath = path.Join(toolchainFolderPath, projectName, toolchainFolder)
 
 	return toolchainFolderPath, nil
 }
@@ -731,7 +735,7 @@ func GetStartupFile(outPath string, bridgeParams BridgeParamType) (string, error
 	var fileExtesion string
 	var fileFilter string
 
-	startupFolder, err := GetToolchainFolderPath(outPath, bridgeParams.Compiler)
+	startupFolder, err := GetToolchainFolderPath(outPath, bridgeParams.Compiler, bridgeParams.ProjectName)
 	if err != nil {
 		return "", err
 	}
@@ -787,7 +791,7 @@ func GetSystemFile(outPath string, bridgeParams BridgeParamType) (string, error)
 	var toolchainFolder string
 	var systemFolder string
 
-	toolchainFolder, err := GetToolchainFolderPath(outPath, bridgeParams.Compiler)
+	toolchainFolder, err := GetToolchainFolderPath(outPath, bridgeParams.Compiler, bridgeParams.ProjectName)
 	if err != nil {
 		return "", err
 	}

@@ -178,6 +178,18 @@ func writeMXdeviceH(contextMap map[string]map[string]string, srcFolder string, m
 		usbHandle, err := getUSBHandle(fMain, peripheral)
 		if err != nil {
 			return err
+		} else if usbHandle == "" {
+			usbOtg := path.Join(srcFolderAbs, "usb_otg.c")
+			usbOtg = filepath.Clean(usbOtg)
+			usbOtg = filepath.ToSlash(usbOtg)
+			fUsbOtg, err := os.Open(usbOtg)
+			if err != nil {
+				return err
+			}
+			usbHandle, err = getUSBHandle(fUsbOtg, peripheral)
+			if err != nil {
+				return err
+			}
 		}
 		mciMode, err := getMCIMode(fMain, peripheral)
 		if err != nil {
